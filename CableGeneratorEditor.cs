@@ -14,6 +14,8 @@ namespace CableGeneratorEditor
         SerializedProperty resolutionProp;
         SerializedProperty uvTilingProp;
 
+        string bakeFolderPath = "";
+
         void OnEnable()
         {
             profileProp = serializedObject.FindProperty("profile");
@@ -24,6 +26,7 @@ namespace CableGeneratorEditor
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
+            var generator = (CableGenerator)target;
 
             EditorGUI.BeginChangeCheck();
 
@@ -48,10 +51,47 @@ namespace CableGeneratorEditor
                 EditorUtility.SetDirty(gen);
             }
 
+            // --- メッシュ保存 ---
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("メッシュ保存", EditorStyles.boldLabel);
+
+            var currentMesh = generator.GetComponent<MeshFilter>()?.sharedMesh;
+            bool hasMesh = currentMesh != null && currentMesh.vertexCount > 0;
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.PrefixLabel("保存先フォルダ");
+            bakeFolderPath = EditorGUILayout.TextField(bakeFolderPath);
+            if (GUILayout.Button("...", GUILayout.Width(24)))
+            {
+                string selected = EditorUtility.OpenFolderPanel("保存先フォルダを選択", "Assets", "");
+                if (!string.IsNullOrEmpty(selected))
+                {
+                    // 絶対パスをAssets相対パスに変換
+                    string dataPath = Application.dataPath.Replace("\\", "/");
+                    selected = selected.Replace("\\", "/");
+                    if (selected.StartsWith(dataPath))
+                        bakeFolderPath = "Assets" + selected.Substring(dataPath.Length);
+                    else
+                        EditorUtility.DisplayDialog("エラー", "Assetsフォルダ内を選択してください。", "OK");
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+
+            if (string.IsNullOrEmpty(bakeFolderPath))
+                EditorGUILayout.HelpBox($"未設定の場合: {CableMeshExporter.DefaultOutputFolder}", MessageType.None);
+
+            EditorGUI.BeginDisabledGroup(!hasMesh);
+            if (GUILayout.Button("メッシュを保存 (.asset)"))
+            {
+                string meshName = generator.gameObject.name + "_cable";
+                CableMeshExporter.SaveMeshAsset(currentMesh, meshName, bakeFolderPath);
+            }
+            EditorGUI.EndDisabledGroup();
+
+            // --- アタッチメント ---
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("アタッチメント", EditorStyles.boldLabel);
 
-            var generator = (CableGenerator)target;
             var splineContainerForUI = generator.GetComponent<SplineContainer>();
             if (splineContainerForUI != null && splineContainerForUI.Splines.Count > 0)
             {
