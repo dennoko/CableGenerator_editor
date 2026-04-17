@@ -250,7 +250,8 @@ namespace CableGeneratorEditor
             Transform sourceTransform = sourceObject.transform;
             Transform sourceParent = sourceTransform.parent;
 
-            var bakedObject = new GameObject(sourceObject.name + "_Baked");
+            string bakedObjectName = sourceObject.name + "_cable_baked";
+            var bakedObject = new GameObject(bakedObjectName);
             Undo.RegisterCreatedObjectUndo(bakedObject, "Create Baked Cable Object");
 
             if (sourceParent != null)
@@ -272,7 +273,11 @@ namespace CableGeneratorEditor
                 bakedRenderer.sharedMaterials = sourceRenderer.sharedMaterials;
 
             Undo.RecordObject(sourceObject, "Disable Original Cable Object");
-            sourceObject.tag = "EditorOnly";
+            bool editorOnlyTagExists = System.Array.IndexOf(InternalEditorUtility.tags, "EditorOnly") >= 0;
+            if (editorOnlyTagExists)
+                sourceObject.tag = "EditorOnly";
+            else
+                Debug.LogWarning("EditorOnly タグが見つからないため、タグ設定をスキップしました。");
             sourceObject.SetActive(false);
 
             EditorUtility.SetDirty(sourceObject);
