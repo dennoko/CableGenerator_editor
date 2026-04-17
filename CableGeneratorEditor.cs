@@ -36,6 +36,7 @@ namespace CableGeneratorEditor
         static TangentMode s_addedKnotMode      = TangentMode.AutoSmooth;
         static int         s_initialDivisionCount = 4;
         static string      s_knotInitLastResult = string.Empty;
+        const float      kVectorEpsilon         = 0.000001f;
 
         void OnEnable()
         {
@@ -142,17 +143,9 @@ namespace CableGeneratorEditor
 
                 EditorGUILayout.BeginHorizontal();
                 if (GUILayout.Button("始点-終点を等分してノット再配置", CableGeneratorTheme.SecondaryButtonStyle))
-                {
-                    bool ok = RedistributeKnotsBetweenEndpoints(generator, s_initialDivisionCount, s_addedKnotMode);
-                    if (!ok && string.IsNullOrEmpty(s_knotInitLastResult))
-                        s_knotInitLastResult = "ノット再配置に失敗しました。";
-                }
+                    RedistributeKnotsBetweenEndpoints(generator, s_initialDivisionCount, s_addedKnotMode);
                 if (GUILayout.Button("全区間を細分化してノット追加", CableGeneratorTheme.SecondaryButtonStyle))
-                {
-                    bool ok = SubdivideSplineKnots(generator, s_addedKnotMode);
-                    if (!ok && string.IsNullOrEmpty(s_knotInitLastResult))
-                        s_knotInitLastResult = "細分化に失敗しました。";
-                }
+                    SubdivideSplineKnots(generator, s_addedKnotMode);
                 EditorGUILayout.EndHorizontal();
 
                 if (!string.IsNullOrEmpty(s_knotInitLastResult))
@@ -701,11 +694,10 @@ namespace CableGeneratorEditor
 
             for (int i = 0; i < curveCount; i++)
             {
-                float t = (i + 0.5f) / curveCount;
-                SplineUtility.Evaluate(spline, t, out float3 pos, out float3 tan, out float3 up);
+                EvaluateCurveMidpoint(knots[i], knots[(i + 1) % knotCount], out float3 pos, out float3 tan, out float3 up);
 
                 Vector3 tangent = ((Vector3)tan).normalized;
-                if (tangent.sqrMagnitude < 0.000001f)
+                if (tangent.sqrMagnitude < kVectorEpsilon)
                     tangent = Vector3.forward;
 
                 quaternion rot = SafeLookRotation(tangent, (Vector3)up);
@@ -776,7 +768,7 @@ namespace CableGeneratorEditor
             Vector3 dir = end - start;
             float totalLength = dir.magnitude;
 
-            Vector3 forward = totalLength > 0.000001f ? dir / totalLength : Vector3.forward;
+            Vector3 forward = totalLength > kVectorEpsilon ? dir / totalLength : Vector3.forward;
             quaternion interiorRotation = SafeLookRotation(forward);
             float tangentLen = totalLength / Mathf.Max(1, divisionCount) / 3f;
 
@@ -808,6 +800,29 @@ namespace CableGeneratorEditor
 
             s_knotInitLastResult = $"始点-終点を{divisionCount}分割で再配置しました（{targetKnotCount}ノット）。";
             return true;
+        }
+
+        static void EvaluateCurveMidpoint(BezierKnot startKnot, BezierKnot endKnot, out float3 pos, out float3 tan, out float3 up)
+        {
+            float3 p0 = startKnot.Position;
+            float3 p1 = startKnot.Position + math.rotate(startKnot.Rotation, startKnot.TangentOut);
+            float3 p2 = endKnot.Position + math.rotate(endKnot.Rotation, endKnot.TangentIn);
+            float3 p3 = endKnot.Position;
+
+            const float t = 0.5f;
+            const float omt = 1f - t;
+
+            pos = (omt * omt * omt) * p0
+                + (3f * omt * omt * t) * p1
+                + (3f * omt * t * t) * p2
+                + (t * t * t) * p3;
+
+            tan = (3f * omt * omt) * (p1 - p0)
+                + (6f * omt * t) * (p2 - p1)
+                + (3f * t * t) * (p3 - p2);
+
+            quaternion midRot = math.slerp(startKnot.Rotation, endKnot.Rotation, t);
+            up = math.rotate(midRot, new float3(0f, 1f, 0f));
         }
 
         // ================================================================
