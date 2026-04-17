@@ -108,7 +108,9 @@ namespace CableGeneratorEditor
                 if (GUILayout.Button("メッシュを保存 (.asset)", CableGeneratorTheme.SecondaryButtonStyle))
                 {
                     string meshName = generator.gameObject.name + "_cable";
-                    CableMeshExporter.SaveMeshAsset(currentMesh, meshName, bakeFolderPath);
+                    string meshAssetPath = CableMeshExporter.SaveMeshAsset(currentMesh, meshName, bakeFolderPath);
+                    if (!string.IsNullOrEmpty(meshAssetPath))
+                        SetupBakedMeshObject(generator, meshAssetPath);
                 }
                 EditorGUI.EndDisabledGroup();
             });
@@ -233,6 +235,49 @@ namespace CableGeneratorEditor
 
             content?.Invoke();
             GUILayout.EndVertical();
+        }
+
+        static void SetupBakedMeshObject(CableGenerator generator, string meshAssetPath)
+        {
+            Mesh bakedMesh = AssetDatabase.LoadAssetAtPath<Mesh>(meshAssetPath);
+            if (bakedMesh == null)
+            {
+                EditorUtility.DisplayDialog("エラー", "保存したメッシュの読み込みに失敗しました。", "OK");
+                return;
+            }
+
+            GameObject sourceObject = generator.gameObject;
+            Transform sourceTransform = sourceObject.transform;
+            Transform sourceParent = sourceTransform.parent;
+
+            var bakedObject = new GameObject(sourceObject.name + "_Baked");
+            Undo.RegisterCreatedObjectUndo(bakedObject, "Create Baked Cable Object");
+
+            if (sourceParent != null)
+            {
+                bakedObject.transform.SetParent(sourceParent, false);
+                bakedObject.transform.SetSiblingIndex(sourceTransform.GetSiblingIndex() + 1);
+            }
+
+            bakedObject.transform.localPosition = sourceTransform.localPosition;
+            bakedObject.transform.localRotation = sourceTransform.localRotation;
+            bakedObject.transform.localScale = sourceTransform.localScale;
+
+            var meshFilter = Undo.AddComponent<MeshFilter>(bakedObject);
+            meshFilter.sharedMesh = bakedMesh;
+
+            var bakedRenderer = Undo.AddComponent<MeshRenderer>(bakedObject);
+            var sourceRenderer = sourceObject.GetComponent<MeshRenderer>();
+            if (sourceRenderer != null)
+                bakedRenderer.sharedMaterials = sourceRenderer.sharedMaterials;
+
+            Undo.RecordObject(sourceObject, "Disable Original Cable Object");
+            sourceObject.tag = "EditorOnly";
+            sourceObject.SetActive(false);
+
+            EditorUtility.SetDirty(sourceObject);
+            EditorUtility.SetDirty(bakedObject);
+            Selection.activeGameObject = bakedObject;
         }
 
         // ================================================================
