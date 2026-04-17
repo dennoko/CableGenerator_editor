@@ -36,7 +36,10 @@ namespace CableGeneratorEditor
         static TangentMode s_addedKnotMode      = TangentMode.AutoSmooth;
         static int         s_initialDivisionCount = 4;
         static string      s_knotInitLastResult = string.Empty;
-        const float      kVectorEpsilon         = 0.000001f;
+        const float       kVectorEpsilon         = 0.000001f;
+        const float       kVectorEpsilonSqr      = kVectorEpsilon * kVectorEpsilon;
+        const float       kMidpointTangentDivisor = 6f;
+        const float       kLinearTangentDivisor  = 3f;
 
         void OnEnable()
         {
@@ -697,13 +700,13 @@ namespace CableGeneratorEditor
                 EvaluateCurveMidpoint(knots[i], knots[(i + 1) % knotCount], out float3 pos, out float3 tan, out float3 up);
 
                 Vector3 tangent = ((Vector3)tan).normalized;
-                if (tangent.sqrMagnitude < kVectorEpsilon)
+                if (tangent.sqrMagnitude < kVectorEpsilonSqr)
                     tangent = Vector3.forward;
 
                 quaternion rot = SafeLookRotation(tangent, (Vector3)up);
                 Vector3 start = (Vector3)knots[i].Position;
                 Vector3 end = (Vector3)knots[(i + 1) % knotCount].Position;
-                float len = Vector3.Distance(start, end) / 6f;
+                float len = Vector3.Distance(start, end) / kMidpointTangentDivisor;
 
                 inserted[i] = new BezierKnot(
                     pos,
@@ -770,7 +773,7 @@ namespace CableGeneratorEditor
 
             Vector3 forward = totalLength > kVectorEpsilon ? dir / totalLength : Vector3.forward;
             quaternion interiorRotation = SafeLookRotation(forward);
-            float tangentLen = totalLength / Mathf.Max(1, divisionCount) / 3f;
+            float tangentLen = totalLength / Mathf.Max(1, divisionCount) / kLinearTangentDivisor;
 
             Undo.RecordObject(splineContainer, "Redistribute Cable Knots");
             spline.Clear();
