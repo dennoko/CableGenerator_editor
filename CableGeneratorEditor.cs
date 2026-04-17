@@ -39,6 +39,7 @@ namespace CableGeneratorEditor
             profileProp    = serializedObject.FindProperty("profile");
             resolutionProp = serializedObject.FindProperty("resolution");
             uvTilingProp   = serializedObject.FindProperty("uvTiling");
+            EnsureSplineGuideComponent((CableGenerator)target);
         }
 
         public override void OnInspectorGUI()
@@ -233,6 +234,42 @@ namespace CableGeneratorEditor
 
             content?.Invoke();
             GUILayout.EndVertical();
+        }
+
+        static void EnsureSplineGuideComponent(CableGenerator generator)
+        {
+            if (generator == null) return;
+
+            var guide = generator.GetComponent<CableSplineGuide>();
+            if (guide == null)
+                guide = Undo.AddComponent<CableSplineGuide>(generator.gameObject);
+
+            MoveGuideBeforeSplineContainer(generator.gameObject, guide);
+        }
+
+        static void MoveGuideBeforeSplineContainer(GameObject go, CableSplineGuide guide)
+        {
+            if (go == null || guide == null) return;
+
+            int guideIndex = -1;
+            int splineIndex = -1;
+            var components = go.GetComponents<Component>();
+
+            for (int i = 0; i < components.Length; i++)
+            {
+                if (components[i] == null) continue;
+                if (components[i] == guide) guideIndex = i;
+                if (components[i] is SplineContainer) splineIndex = i;
+            }
+
+            if (guideIndex < 0 || splineIndex < 0 || guideIndex <= splineIndex) return;
+
+            while (guideIndex > splineIndex)
+            {
+                if (!ComponentUtility.MoveComponentUp(guide))
+                    break;
+                guideIndex--;
+            }
         }
 
         // ================================================================
@@ -741,6 +778,7 @@ namespace CableGeneratorEditor
             GameObject go = new GameObject("Cable");
             GameObjectUtility.SetParentAndAlign(go, menuCommand.context as GameObject);
 
+            var guide = go.AddComponent<CableSplineGuide>();
             var splineContainer = go.AddComponent<SplineContainer>();
             go.AddComponent<MeshFilter>();
             var renderer = go.AddComponent<MeshRenderer>();
@@ -757,9 +795,44 @@ namespace CableGeneratorEditor
                 TangentMode.Mirrored);
 
             go.AddComponent<CableGenerator>();
+            MoveGuideBeforeSplineContainer(go, guide);
 
             Undo.RegisterCreatedObjectUndo(go, "Create Cable Generator");
             Selection.activeGameObject = go;
+        }
+    }
+
+    [CustomEditor(typeof(CableSplineGuide))]
+    public class CableSplineGuideInspector : Editor
+    {
+        public override void OnInspectorGUI()
+        {
+            CableGeneratorTheme.Initialize();
+
+            GUILayout.BeginVertical(CableGeneratorTheme.CardStyle);
+            GUILayout.Label("SPLINES GUIDE", CableGeneratorTheme.SectionHeaderStyle);
+
+            var rect = GUILayoutUtility.GetRect(0, 1, GUILayout.ExpandWidth(true));
+            EditorGUI.DrawRect(rect, CableGeneratorTheme.Outline);
+            EditorGUILayout.Space(4);
+
+            EditorGUILayout.LabelField(
+                "CableのSpline編集方法",
+                CableGeneratorTheme.SecondaryTextStyle);
+
+            GUILayout.Space(4);
+            EditorGUILayout.HelpBox(
+                "1) ケーブル本体を選択し、Sceneビューの球ハンドルでノットを移動します。\n" +
+                "2) 青/橙のタンジェントハンドルをドラッグして曲率を調整します。\n" +
+                "3) Cable Generatorコンポーネントの「2点選択でSplineを設定」で始点/終点を再設定できます。\n" +
+                "4) 「指定ノットを面へ投影」でノットをサーフェスへスナップできます。",
+                MessageType.Info);
+
+            EditorGUILayout.LabelField(
+                "補足: 操作対象にColliderが必要です。",
+                CableGeneratorTheme.CaptionStyle);
+
+            GUILayout.EndVertical();
         }
     }
 }
