@@ -38,6 +38,13 @@ namespace CableGeneratorEditor
         static TangentMode s_addedKnotMode      = TangentMode.AutoSmooth;
         static int         s_initialDivisionCount = 4;
         static string      s_knotInitLastResult = string.Empty;
+
+        // ---- Section Fold States (デフォルト折りたたみ) ----
+        static bool s_foldSplineSetup    = false;
+        static bool s_foldKnotProjection = false;
+        static bool s_foldAttachments    = false;
+        static bool s_foldExport         = false;
+
         const float       kVectorEpsilon         = 0.000001f;
         const float       kVectorEpsilonSqr      = kVectorEpsilon * kVectorEpsilon;
         const float       kMidpointTangentDivisor = 6f;
@@ -59,8 +66,8 @@ namespace CableGeneratorEditor
             // Surface0 でインスペクター全体を塗り、カード(Surface1)が浮かぶレイアウトを作る
             GUILayout.BeginVertical(CableGeneratorTheme.InspectorRootStyle);
 
-            // ---- GENERATOR SETTINGS ----
-            DrawSection("GENERATOR SETTINGS", () =>
+            // ---- 断面プロファイルの設定 ----
+            DrawSection("断面プロファイルの設定", () =>
             {
                 EditorGUI.BeginChangeCheck();
 
@@ -84,48 +91,8 @@ namespace CableGeneratorEditor
                 }
             });
 
-            // ---- EXPORT ----
-            DrawSection("EXPORT", () =>
-            {
-                var currentMesh = generator.GetComponent<MeshFilter>()?.sharedMesh;
-                bool hasMesh = currentMesh != null && currentMesh.vertexCount > 0;
-
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.PrefixLabel("保存先フォルダ");
-                bakeFolderPath = EditorGUILayout.TextField(bakeFolderPath);
-                if (GUILayout.Button("...", CableGeneratorTheme.SecondaryButtonStyle, GUILayout.Width(28)))
-                {
-                    string selected = EditorUtility.OpenFolderPanel("保存先フォルダを選択", "Assets", "");
-                    if (!string.IsNullOrEmpty(selected))
-                    {
-                        string dataPath = Application.dataPath.Replace("\\", "/");
-                        selected = selected.Replace("\\", "/");
-                        if (selected.StartsWith(dataPath))
-                            bakeFolderPath = "Assets" + selected.Substring(dataPath.Length);
-                        else
-                            EditorUtility.DisplayDialog("エラー", "Assetsフォルダ内を選択してください。", "OK");
-                    }
-                }
-                EditorGUILayout.EndHorizontal();
-
-                if (string.IsNullOrEmpty(bakeFolderPath))
-                    GUILayout.Label($"未設定の場合: {CableMeshExporter.DefaultOutputFolder}", CableGeneratorTheme.CaptionStyle);
-
-                GUILayout.Space(8);
-
-                EditorGUI.BeginDisabledGroup(!hasMesh);
-                if (GUILayout.Button("メッシュを保存 (.asset)", CableGeneratorTheme.SecondaryButtonStyle))
-                {
-                    string meshName = generator.gameObject.name + "_cable";
-                    string meshAssetPath = CableMeshExporter.SaveMeshAsset(currentMesh, meshName, bakeFolderPath);
-                    if (!string.IsNullOrEmpty(meshAssetPath))
-                        SetupBakedMeshObject(generator, meshAssetPath);
-                }
-                EditorGUI.EndDisabledGroup();
-            });
-
-            // ---- SPLINE SETUP ----
-            DrawSection("SPLINE SETUP", () =>
+            // ---- スプライン設定 ----
+            DrawFoldableSection("スプライン設定", ref s_foldSplineSetup, () =>
             {
                 EditorGUILayout.HelpBox(
                     "2点選択機能を使うには、対象メッシュにコライダーが必要です（MeshCollider 推奨）。\n" +
@@ -195,8 +162,8 @@ namespace CableGeneratorEditor
                 }
             });
 
-            // ---- KNOT PROJECTION ----
-            DrawSection("KNOT PROJECTION", () =>
+            // ---- ノット投影 ----
+            DrawFoldableSection("ノット投影", ref s_foldKnotProjection, () =>
             {
                 EditorGUI.BeginChangeCheck();
                 s_snapKnotIndex = Mathf.Max(0, EditorGUILayout.IntField("対象ノット Index", s_snapKnotIndex));
@@ -239,11 +206,11 @@ namespace CableGeneratorEditor
                 }
             });
 
-            // ---- ATTACHMENTS ----
+            // ---- アタッチメント ----
             var splineContainerForUI = generator.GetComponent<SplineContainer>();
             if (splineContainerForUI != null && splineContainerForUI.Splines.Count > 0)
             {
-                DrawSection("ATTACHMENTS", () =>
+                DrawFoldableSection("アタッチメント", ref s_foldAttachments, () =>
                 {
                     int knotCount = splineContainerForUI.Splines[0].Count;
                     for (int i = 0; i < knotCount; i++)
@@ -262,6 +229,46 @@ namespace CableGeneratorEditor
                 });
             }
 
+            // ---- エクスポート ----
+            DrawFoldableSection("エクスポート", ref s_foldExport, () =>
+            {
+                var currentMesh = generator.GetComponent<MeshFilter>()?.sharedMesh;
+                bool hasMesh = currentMesh != null && currentMesh.vertexCount > 0;
+
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.PrefixLabel("保存先フォルダ");
+                bakeFolderPath = EditorGUILayout.TextField(bakeFolderPath);
+                if (GUILayout.Button("...", CableGeneratorTheme.SecondaryButtonStyle, GUILayout.Width(28)))
+                {
+                    string selected = EditorUtility.OpenFolderPanel("保存先フォルダを選択", "Assets", "");
+                    if (!string.IsNullOrEmpty(selected))
+                    {
+                        string dataPath = Application.dataPath.Replace("\\", "/");
+                        selected = selected.Replace("\\", "/");
+                        if (selected.StartsWith(dataPath))
+                            bakeFolderPath = "Assets" + selected.Substring(dataPath.Length);
+                        else
+                            EditorUtility.DisplayDialog("エラー", "Assetsフォルダ内を選択してください。", "OK");
+                    }
+                }
+                EditorGUILayout.EndHorizontal();
+
+                if (string.IsNullOrEmpty(bakeFolderPath))
+                    GUILayout.Label($"未設定の場合: {CableMeshExporter.DefaultOutputFolder}", CableGeneratorTheme.CaptionStyle);
+
+                GUILayout.Space(8);
+
+                EditorGUI.BeginDisabledGroup(!hasMesh);
+                if (GUILayout.Button("メッシュを保存 (.asset)", CableGeneratorTheme.SecondaryButtonStyle))
+                {
+                    string meshName = generator.gameObject.name + "_cable";
+                    string meshAssetPath = CableMeshExporter.SaveMeshAsset(currentMesh, meshName, bakeFolderPath);
+                    if (!string.IsNullOrEmpty(meshAssetPath))
+                        SetupBakedMeshObject(generator, meshAssetPath);
+                }
+                EditorGUI.EndDisabledGroup();
+            });
+
             GUILayout.EndVertical(); // InspectorRootStyle
         }
 
@@ -275,6 +282,28 @@ namespace CableGeneratorEditor
             EditorGUILayout.Space(4);
 
             content?.Invoke();
+            GUILayout.EndVertical();
+        }
+
+        private void DrawFoldableSection(string title, ref bool foldout, System.Action content)
+        {
+            GUILayout.BeginVertical(CableGeneratorTheme.CardStyle);
+
+            string label = (foldout ? "▼  " : "▶  ") + title;
+            if (GUILayout.Button(label, CableGeneratorTheme.SectionHeaderStyle))
+            {
+                foldout = !foldout;
+                GUI.changed = true;
+            }
+
+            if (foldout)
+            {
+                var rect = GUILayoutUtility.GetRect(0, 1, GUILayout.ExpandWidth(true));
+                EditorGUI.DrawRect(rect, CableGeneratorTheme.Outline);
+                EditorGUILayout.Space(4);
+                content?.Invoke();
+            }
+
             GUILayout.EndVertical();
         }
 
