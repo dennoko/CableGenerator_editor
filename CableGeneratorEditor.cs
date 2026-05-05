@@ -39,11 +39,23 @@ namespace CableGeneratorEditor
         static int         s_initialDivisionCount = 4;
         static string      s_knotInitLastResult = string.Empty;
 
+        // ---- Cable Sag Settings ----
+        static float     s_sagDropDistance   = 0.5f;
+        static float     s_sagHandleLength   = 0.5f;
+        static string    s_sagLastResult     = string.Empty;
+        static bool      s_hasSagKnots       = false;
+        static bool      s_sagUseMirrored    = false;
+        static int       s_sagOriginalCount  = 0;
+        static bool      s_sagWasClosed      = false;
+        static Vector3[] s_sagBasePositions  = null;
+
         // ---- Section Fold States (デフォルト折りたたみ) ----
-        static bool s_foldSplineSetup    = false;
-        static bool s_foldKnotProjection = false;
-        static bool s_foldAttachments    = false;
-        static bool s_foldExport         = false;
+        static bool s_foldSplineSetup      = false;
+        static bool s_foldKnotSubdivision = false;
+        static bool s_foldCableSag         = false;
+        static bool s_foldKnotProjection   = false;
+        static bool s_foldAttachments      = false;
+        static bool s_foldExport           = false;
 
         const float       kVectorEpsilon         = 0.000001f;
         const float       kVectorEpsilonSqr      = kVectorEpsilon * kVectorEpsilon;
@@ -93,8 +105,8 @@ namespace CableGeneratorEditor
                 }
             });
 
-            // ---- スプライン設定 ----
-            DrawFoldableSection("スプライン設定", ref s_foldSplineSetup, () =>
+            // ---- スプラインの基本構成 ----
+            DrawFoldableSection("スプラインの基本構成", ref s_foldSplineSetup, () =>
             {
                 EditorGUILayout.HelpBox(
                     "2点選択機能を使うには、対象メッシュにコライダーが必要です（MeshCollider 推奨）。\n" +
@@ -112,20 +124,6 @@ namespace CableGeneratorEditor
                 }
 
                 GUILayout.Space(6);
-
-                EditorGUILayout.LabelField("初期ノット設定", EditorStyles.boldLabel);
-                s_addedKnotMode = (TangentMode)EditorGUILayout.EnumPopup("追加ノットモード", s_addedKnotMode);
-                s_initialDivisionCount = Mathf.Max(1, EditorGUILayout.IntField("始点-終点 分割数", s_initialDivisionCount));
-
-                EditorGUILayout.BeginHorizontal();
-                if (GUILayout.Button("始点-終点を等分してノット再配置", CableGeneratorTheme.SecondaryButtonStyle))
-                    RedistributeKnotsBetweenEndpoints(generator, s_initialDivisionCount, s_addedKnotMode);
-                if (GUILayout.Button("全区間を細分化してノット追加", CableGeneratorTheme.SecondaryButtonStyle))
-                    SubdivideSplineKnots(generator, s_addedKnotMode);
-                EditorGUILayout.EndHorizontal();
-
-                if (!string.IsNullOrEmpty(s_knotInitLastResult))
-                    GUILayout.Label(s_knotInitLastResult, CableGeneratorTheme.CaptionStyle);
 
                 bool isMyTarget = s_pickingTarget == generator;
 
@@ -162,6 +160,23 @@ namespace CableGeneratorEditor
                         CancelPickingMode();
                     EditorGUILayout.EndHorizontal();
                 }
+            });
+
+            // ---- ノットの細分化・等分 ----
+            DrawFoldableSection("ノットの細分化・等分", ref s_foldKnotSubdivision, () =>
+            {
+                s_addedKnotMode = (TangentMode)EditorGUILayout.EnumPopup("追加ノットモード", s_addedKnotMode);
+                s_initialDivisionCount = Mathf.Max(1, EditorGUILayout.IntField("始点-終点 分割数", s_initialDivisionCount));
+
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("始点-終点を等分してノット再配置", CableGeneratorTheme.SecondaryButtonStyle))
+                    RedistributeKnotsBetweenEndpoints(generator, s_initialDivisionCount, s_addedKnotMode);
+                if (GUILayout.Button("全区間を細分化してノット追加", CableGeneratorTheme.SecondaryButtonStyle))
+                    SubdivideSplineKnots(generator, s_addedKnotMode);
+                EditorGUILayout.EndHorizontal();
+
+                if (!string.IsNullOrEmpty(s_knotInitLastResult))
+                    GUILayout.Label(s_knotInitLastResult, CableGeneratorTheme.CaptionStyle);
             });
 
             // ---- ノット投影 ----
@@ -206,6 +221,42 @@ namespace CableGeneratorEditor
                     GUILayout.Space(4);
                     GUILayout.Label(s_snapLastResult, CableGeneratorTheme.CaptionStyle);
                 }
+            });
+
+            // ---- ケーブルたわみ設定 ----
+            DrawFoldableSection("ケーブルたわみ設定", ref s_foldCableSag, () =>
+            {
+                // 1. ノット挿入ボタン
+                if (GUILayout.Button("たわみノットを挿入", CableGeneratorTheme.SecondaryButtonStyle))
+                    InsertSagKnots(generator);
+
+                if (!string.IsNullOrEmpty(s_sagLastResult))
+                {
+                    GUILayout.Space(2);
+                    GUILayout.Label(s_sagLastResult, CableGeneratorTheme.CaptionStyle);
+                }
+
+                GUILayout.Space(6);
+
+                // 2. 降下距離スライダー
+                EditorGUI.BeginChangeCheck();
+                s_sagDropDistance = EditorGUILayout.Slider("降下距離", s_sagDropDistance, 0f, 5f);
+                if (EditorGUI.EndChangeCheck() && s_hasSagKnots)
+                    UpdateSagKnots(generator, s_sagDropDistance, s_sagHandleLength);
+
+                // 3. Mirrored 有効チェックボックス
+                EditorGUI.BeginChangeCheck();
+                s_sagUseMirrored = EditorGUILayout.Toggle("Mirrored ハンドル", s_sagUseMirrored);
+                if (EditorGUI.EndChangeCheck() && s_hasSagKnots)
+                    UpdateSagKnots(generator, s_sagDropDistance, s_sagHandleLength);
+
+                // 4. ハンドル長さスライダー（Mirrored 有効時のみ操作可能）
+                EditorGUI.BeginDisabledGroup(!s_sagUseMirrored);
+                EditorGUI.BeginChangeCheck();
+                s_sagHandleLength = EditorGUILayout.Slider("ハンドルの長さ", s_sagHandleLength, 0f, 3f);
+                if (EditorGUI.EndChangeCheck() && s_hasSagKnots)
+                    UpdateSagKnots(generator, s_sagDropDistance, s_sagHandleLength);
+                EditorGUI.EndDisabledGroup();
             });
 
             // ---- アタッチメント ----
@@ -822,6 +873,136 @@ namespace CableGeneratorEditor
             }
 
             EditorUtility.SetDirty(splineContainer);
+        }
+
+        // ================================================================
+        //  Cable Sag
+        // ================================================================
+
+        static void InsertSagKnots(CableGenerator cableGen)
+        {
+            s_sagLastResult = string.Empty;
+            s_hasSagKnots   = false;
+
+            var splineContainer = cableGen.GetComponent<SplineContainer>();
+            if (splineContainer == null || splineContainer.Splines.Count == 0)
+            {
+                s_sagLastResult = "SplineContainer が見つかりません。";
+                return;
+            }
+
+            var spline    = splineContainer.Splines[0];
+            int knotCount = spline.Count;
+            if (knotCount < 2)
+            {
+                s_sagLastResult = "たわみ挿入には最低2つのノットが必要です。";
+                return;
+            }
+
+            bool closed     = spline.Closed;
+            int  curveCount = closed ? knotCount : knotCount - 1;
+
+            var knots = new BezierKnot[knotCount];
+            var modes = new TangentMode[knotCount];
+            for (int i = 0; i < knotCount; i++)
+            {
+                knots[i] = spline[i];
+                modes[i] = spline.GetTangentMode(i);
+            }
+
+            // オフセットなしの中点を記録（UpdateSagKnotsで再利用）
+            var basePositions = new Vector3[curveCount];
+            var inserted      = new BezierKnot[curveCount];
+
+            for (int i = 0; i < curveCount; i++)
+            {
+                int nextIdx = (i + 1) % knotCount;
+                Vector3 localA = (Vector3)(float3)knots[i].Position;
+                Vector3 localB = (Vector3)(float3)knots[nextIdx].Position;
+                basePositions[i] = (localA + localB) * 0.5f;
+
+                Vector3 segDir = localB - localA;
+                if (segDir.sqrMagnitude < kVectorEpsilonSqr) segDir = Vector3.forward;
+                else segDir.Normalize();
+
+                inserted[i] = new BezierKnot(
+                    (float3)basePositions[i],
+                    new float3(0f, 0f, -0.5f),
+                    new float3(0f, 0f,  0.5f),
+                    SafeLookRotation(segDir));
+            }
+
+            Undo.RecordObject(splineContainer, "Insert Cable Sag Knots");
+            spline.Clear();
+            spline.Closed = closed;
+
+            for (int i = 0; i < knotCount; i++)
+            {
+                spline.Add(knots[i], modes[i]);
+                if (closed || i < knotCount - 1)
+                    spline.Add(inserted[i], s_sagUseMirrored ? TangentMode.Mirrored : TangentMode.AutoSmooth);
+            }
+
+            s_sagBasePositions = basePositions;
+            s_sagOriginalCount = knotCount;
+            s_sagWasClosed     = closed;
+            s_hasSagKnots      = true;
+
+            EditorUtility.SetDirty(splineContainer);
+
+            // 現在のスライダー値で初期オフセットを適用
+            UpdateSagKnots(cableGen, s_sagDropDistance, s_sagHandleLength);
+
+            s_sagLastResult = $"区間 {curveCount} にたわみノットを挿入しました（{knotCount} → {spline.Count} ノット）。";
+        }
+
+        static void UpdateSagKnots(CableGenerator cableGen, float dropDistance, float handleLength)
+        {
+            if (!s_hasSagKnots || s_sagBasePositions == null) return;
+
+            var splineContainer = cableGen.GetComponent<SplineContainer>();
+            if (splineContainer == null || splineContainer.Splines.Count == 0) return;
+
+            var spline        = splineContainer.Splines[0];
+            int expectedCount = s_sagWasClosed ? s_sagOriginalCount * 2 : s_sagOriginalCount * 2 - 1;
+
+            // スプライン構造が変わっていれば（Undo等）調整モードを解除
+            if (spline.Count != expectedCount)
+            {
+                s_hasSagKnots   = false;
+                s_sagLastResult = "スプライン構造が変更されたため調整を終了しました。";
+                return;
+            }
+
+            Transform tf          = splineContainer.transform;
+            // ワールド空間の下方向ベクトルをローカル空間のオフセットに変換（スケール考慮）
+            Vector3   localOffset = tf.InverseTransformVector(Vector3.down * dropDistance);
+            int       sagCount    = s_sagBasePositions.Length;
+
+            TangentMode targetMode = s_sagUseMirrored ? TangentMode.Mirrored : TangentMode.AutoSmooth;
+
+            Undo.RecordObject(splineContainer, "Adjust Cable Sag");
+
+            for (int i = 0; i < sagCount; i++)
+            {
+                int splineIdx = 2 * i + 1;
+                var k = spline[splineIdx];
+                k.Position = (float3)(s_sagBasePositions[i] + localOffset);
+
+                if (s_sagUseMirrored)
+                {
+                    k.TangentIn  = new float3(0f, 0f, -handleLength);
+                    k.TangentOut = new float3(0f, 0f,  handleLength);
+                }
+
+                spline.SetKnot(splineIdx, k);
+
+                if (spline.GetTangentMode(splineIdx) != targetMode)
+                    spline.SetTangentMode(splineIdx, targetMode);
+            }
+
+            EditorUtility.SetDirty(splineContainer);
+            SceneView.RepaintAll();
         }
 
         // ================================================================
