@@ -60,11 +60,13 @@ namespace CableGeneratorEditor
         public override void OnInspectorGUI()
         {
             CableGeneratorTheme.Initialize();
+
             serializedObject.Update();
             var generator = (CableGenerator)target;
 
-            // Surface0 でインスペクター全体を塗り、カード(Surface1)が浮かぶレイアウトを作る
-            GUILayout.BeginVertical(CableGeneratorTheme.InspectorRootStyle);
+            // 全体を垂直レイアウトで囲む
+            EditorGUILayout.BeginVertical(CableGeneratorTheme.InspectorRootStyle);
+            
 
             // ---- 断面プロファイルの設定 ----
             DrawSection("断面プロファイルの設定", () =>
