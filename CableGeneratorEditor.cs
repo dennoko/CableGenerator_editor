@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.Splines;
 using UnityEditorInternal;
@@ -27,6 +28,7 @@ namespace CableGeneratorEditor
 
         // ---- Knot Projection Settings ----
         static int       s_snapKnotIndex        = 0;
+        static readonly HashSet<int> s_selectedKnotIndices = new HashSet<int>();
         static Vector3   s_snapDirection        = Vector3.down;
         static bool      s_snapDirectionIsLocal = false;
         static float     s_snapMaxDistance      = 10f;
@@ -196,7 +198,22 @@ namespace CableGeneratorEditor
             // ---- KNOT PROJECTION ----
             DrawSection("KNOT PROJECTION", () =>
             {
-                s_snapKnotIndex        = Mathf.Max(0, EditorGUILayout.IntField("対象ノット Index", s_snapKnotIndex));
+                EditorGUI.BeginChangeCheck();
+                s_snapKnotIndex = Mathf.Max(0, EditorGUILayout.IntField("対象ノット Index", s_snapKnotIndex));
+                if (EditorGUI.EndChangeCheck())
+                    s_selectedKnotIndices.Clear();
+
+                if (s_selectedKnotIndices.Count > 0)
+                {
+                    var sorted = new List<int>(s_selectedKnotIndices);
+                    sorted.Sort();
+                    GUILayout.Label($"複数選択中: {string.Join(", ", sorted)}", CableGeneratorTheme.CaptionStyle);
+                }
+                else
+                {
+                    GUILayout.Label("Shiftキー+クリックで複数選択", CableGeneratorTheme.CaptionStyle);
+                }
+
                 s_snapDirection        = EditorGUILayout.Vector3Field("投影方向", s_snapDirection);
                 s_snapDirectionIsLocal = EditorGUILayout.Toggle("方向をローカル扱い", s_snapDirectionIsLocal);
                 s_snapMaxDistance      = Mathf.Max(0f, EditorGUILayout.FloatField("最大距離", s_snapMaxDistance));
@@ -205,7 +222,10 @@ namespace CableGeneratorEditor
 
                 GUILayout.Space(6);
 
-                if (GUILayout.Button("指定ノットを面へ投影", CableGeneratorTheme.SecondaryButtonStyle))
+                string snapButtonLabel = s_selectedKnotIndices.Count > 0
+                    ? $"選択した {s_selectedKnotIndices.Count} ノットを面へ投影"
+                    : "指定ノットを面へ投影";
+                if (GUILayout.Button(snapButtonLabel, CableGeneratorTheme.SecondaryButtonStyle))
                 {
                     bool ok = SnapKnotInDirection(generator);
                     if (!ok && string.IsNullOrEmpty(s_snapLastResult))
@@ -371,13 +391,10 @@ namespace CableGeneratorEditor
 
                 float handleSize = HandleUtility.GetHandleSize(worldPos) * 0.1f;
 
+                // PositionHandle: ドラッグで移動
                 Handles.color = GetKnotColor(spline.GetTangentMode(i));
-
                 EditorGUI.BeginChangeCheck();
                 Vector3 newWorldPos = Handles.PositionHandle(worldPos, Quaternion.identity);
-
-                Handles.SphereHandleCap(0, worldPos, Quaternion.identity, handleSize * 2f, EventType.Repaint);
-
                 if (EditorGUI.EndChangeCheck())
                 {
                     Undo.RecordObject(splineContainer, "Move Cable Control Point");
@@ -386,6 +403,31 @@ namespace CableGeneratorEditor
                     spline.SetKnot(i, knot);
                     EditorUtility.SetDirty(splineContainer);
                     gen.RebuildMesh();
+                }
+
+                // 選択スフィア: クリックで単体選択、Shift+クリックで複数選択
+                bool isSelected = i == s_snapKnotIndex || s_selectedKnotIndices.Contains(i);
+                Handles.color = isSelected
+                    ? (i == s_snapKnotIndex ? Color.white : new Color(1f, 0.9f, 0.2f))
+                    : GetKnotColor(spline.GetTangentMode(i));
+
+                bool shiftHeld = Event.current.shift;
+                if (Handles.Button(worldPos, Quaternion.identity, handleSize * 2f, handleSize * 2.5f, Handles.SphereHandleCap))
+                {
+                    if (shiftHeld)
+                    {
+                        if (s_selectedKnotIndices.Contains(i))
+                            s_selectedKnotIndices.Remove(i);
+                        else
+                            s_selectedKnotIndices.Add(i);
+                    }
+                    else
+                    {
+                        s_selectedKnotIndices.Clear();
+                        s_snapKnotIndex = i;
+                    }
+                    Repaint();
+                    SceneView.RepaintAll();
                 }
 
                 DrawTangentHandle(spline, splineContainer, transform, i, knot, gen, true);
@@ -563,10 +605,25 @@ namespace CableGeneratorEditor
                 return false;
             }
 
-            if (s_snapKnotIndex < 0 || s_snapKnotIndex >= count)
+            // 複数選択があればそちらを使い、なければ単体インデックス
+            List<int> targetIndices;
+            if (s_selectedKnotIndices.Count > 0)
             {
-                s_snapLastResult = $"Index {s_snapKnotIndex} は範囲外です（0..{count - 1}）。";
-                return false;
+                targetIndices = new List<int>(s_selectedKnotIndices);
+                targetIndices.Sort();
+            }
+            else
+            {
+                targetIndices = new List<int> { s_snapKnotIndex };
+            }
+
+            foreach (int idx in targetIndices)
+            {
+                if (idx < 0 || idx >= count)
+                {
+                    s_snapLastResult = $"Index {idx} は範囲外です（0..{count - 1}）。";
+                    return false;
+                }
             }
 
             Vector3 dir = s_snapDirectionIsLocal
@@ -580,25 +637,10 @@ namespace CableGeneratorEditor
             }
             dir.Normalize();
 
-            var     srcKnot     = spline[s_snapKnotIndex];
-            Vector3 worldOrigin = splineContainer.transform.TransformPoint((Vector3)srcKnot.Position);
-
-            if (!Physics.Raycast(worldOrigin, dir, out RaycastHit hit,
-                    s_snapMaxDistance, s_snapLayerMask.value, QueryTriggerInteraction.Ignore))
-            {
-                s_snapLastResult = "指定方向にヒットが見つかりませんでした。";
-                return false;
-            }
-
-            Vector3 worldTargetPos = hit.point + hit.normal * s_snapSurfaceOffset;
-            Vector3 localTargetPos = splineContainer.transform.InverseTransformPoint(worldTargetPos);
-            Vector3 localHitNormal = splineContainer.transform.InverseTransformDirection(hit.normal).normalized;
-            Vector3 localDir       = splineContainer.transform.InverseTransformDirection(dir).normalized;
-
-            bool        closed    = spline.Closed;
-            int         knotCount = spline.Count;
-            BezierKnot[] knots   = new BezierKnot[knotCount];
-            TangentMode[] modes  = new TangentMode[knotCount];
+            bool         closed    = spline.Closed;
+            int          knotCount = spline.Count;
+            BezierKnot[] knots     = new BezierKnot[knotCount];
+            TangentMode[] modes    = new TangentMode[knotCount];
 
             for (int i = 0; i < knotCount; i++)
             {
@@ -606,15 +648,44 @@ namespace CableGeneratorEditor
                 modes[i] = spline.GetTangentMode(i);
             }
 
-            var       oldKnot    = knots[s_snapKnotIndex];
-            quaternion snappedRot = AlignForwardToPlaneNoNormalTwist(oldKnot.Rotation, localHitNormal, localDir);
-            knots[s_snapKnotIndex] = new BezierKnot(
-                (float3)localTargetPos,
-                oldKnot.TangentIn,
-                oldKnot.TangentOut,
-                snappedRot);
+            Vector3 localDir = splineContainer.transform.InverseTransformDirection(dir).normalized;
 
-            Undo.RecordObject(splineContainer, "Snap Knot To Surface");
+            int successCount = 0;
+            var failedIndices = new List<int>();
+
+            foreach (int targetIndex in targetIndices)
+            {
+                Vector3 worldOrigin = splineContainer.transform.TransformPoint((Vector3)knots[targetIndex].Position);
+
+                if (!Physics.Raycast(worldOrigin, dir, out RaycastHit hit,
+                        s_snapMaxDistance, s_snapLayerMask.value, QueryTriggerInteraction.Ignore))
+                {
+                    failedIndices.Add(targetIndex);
+                    continue;
+                }
+
+                Vector3 worldTargetPos = hit.point + hit.normal * s_snapSurfaceOffset;
+                Vector3 localTargetPos = splineContainer.transform.InverseTransformPoint(worldTargetPos);
+                Vector3 localHitNormal = splineContainer.transform.InverseTransformDirection(hit.normal).normalized;
+
+                var        oldKnot    = knots[targetIndex];
+                quaternion snappedRot = AlignForwardToPlaneNoNormalTwist(oldKnot.Rotation, localHitNormal, localDir);
+                knots[targetIndex] = new BezierKnot(
+                    (float3)localTargetPos,
+                    oldKnot.TangentIn,
+                    oldKnot.TangentOut,
+                    snappedRot);
+
+                successCount++;
+            }
+
+            if (successCount == 0)
+            {
+                s_snapLastResult = "すべてのノットで投影に失敗しました。";
+                return false;
+            }
+
+            Undo.RecordObject(splineContainer, "Snap Knots To Surface");
             spline.Clear();
             spline.Closed = closed;
 
@@ -624,7 +695,20 @@ namespace CableGeneratorEditor
             EditorUtility.SetDirty(splineContainer);
             SceneView.RepaintAll();
 
-            s_snapLastResult = $"Knot {s_snapKnotIndex} をヒット位置へ移動しました。";
+            if (failedIndices.Count > 0)
+            {
+                string failedStr = string.Join(", ", failedIndices);
+                s_snapLastResult = $"{successCount} ノットを投影。ヒットなし: [{failedStr}]";
+            }
+            else if (targetIndices.Count == 1)
+            {
+                s_snapLastResult = $"Knot {targetIndices[0]} をヒット位置へ移動しました。";
+            }
+            else
+            {
+                string indexStr = string.Join(", ", targetIndices);
+                s_snapLastResult = $"Knot [{indexStr}] をヒット位置へ移動しました。";
+            }
             return true;
         }
 
