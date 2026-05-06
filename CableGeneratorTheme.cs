@@ -74,8 +74,9 @@ namespace CableGeneratorEditor
             // インスペクター全体の背景: Surface0 で塗り、Inspector の内側パディングを打ち消す
             InspectorRootStyle = new GUIStyle();
             InspectorRootStyle.normal.background = _texSurface0;
-            InspectorRootStyle.margin  = new RectOffset(-4, -4, -4, -4); // Inspector 内側余白を塗り潰す
-            InspectorRootStyle.padding = new RectOffset(4, 4, 8, 8);
+            InspectorRootStyle.margin   = new RectOffset(0, 0, 0, 0);
+            InspectorRootStyle.padding  = new RectOffset(10, 10, 8, 8);
+            InspectorRootStyle.overflow = new RectOffset(20, 20, 0, 0); // 背景描画領域だけを左右に広げる
 
             CardStyle = new GUIStyle();
             CardStyle.normal.background = _texCard;
