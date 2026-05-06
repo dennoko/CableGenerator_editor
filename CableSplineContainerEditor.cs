@@ -229,21 +229,20 @@ namespace CableGeneratorEditor
 
             int count          = spline.Count;
             int deleteIndex    = -1;
-            int insertAfterIdx = -1;
 
             for (int i = 0; i < count; i++)
             {
-                DrawKnotRow(container, spline, i, count, ref deleteIndex, ref insertAfterIdx);
+                DrawKnotRow(container, spline, i, count, ref deleteIndex);
                 GUILayout.Space(2);
             }
 
             GUILayout.Space(4);
 
-            // 末尾追加ボタン（プライマリアクション）
-            if (GUILayout.Button(new GUIContent("＋  制御点を末尾に追加",
-                    "末尾に新しい制御点を追加します。前の制御点の接線方向に 2m オフセットした位置に配置されます。"),
+            // 追加ボタン（プライマリアクション）
+            if (GUILayout.Button(new GUIContent("＋  制御点を追加",
+                    "現在選択中の制御点の次に新しい制御点を追加します。\n途中の場合は前後の中間地点に挿入され、末尾の場合は接線方向に2mオフセットされます。"),
                 CableGeneratorTheme.ActionButtonStyle))
-                AddKnotAtEnd(container, spline);
+                AddKnotAfterSelected(container, spline);
 
             GUILayout.EndVertical();
 
@@ -258,19 +257,14 @@ namespace CableGeneratorEditor
                 container.GetComponent<CableGenerator>()?.RebuildMesh();
                 SceneView.RepaintAll();
             }
-            else if (insertAfterIdx >= 0)
-            {
-                InsertKnotAfter(container, spline, insertAfterIdx);
-            }
         }
 
         void DrawKnotRow(SplineContainer container, Spline spline, int index, int total,
-            ref int deleteIndex, ref int insertAfterIndex)
+            ref int deleteIndex)
         {
             bool isSelected = (index == CableGeneratorInspector.s_snapKnotIndex);
             bool isFirst    = index == 0;
             bool isLast     = index == total - 1 && !spline.Closed;
-            bool canInsert  = spline.Closed || index < total - 1;
 
             var rowStyle = isSelected
                 ? CableGeneratorTheme.KnotRowSelectedStyle
@@ -278,20 +272,22 @@ namespace CableGeneratorEditor
 
             GUILayout.BeginHorizontal(rowStyle);
 
-            // ラベルボタン（クリックで選択）
+            // ラベルボタン（クリックで選択、空き領域全体を埋める）
             string labelText = isFirst ? $"[{index}] スタート"
                              : isLast  ? $"[{index}] エンド"
                              :           $"[{index}]";
+
+            var labelBtnStyle = new GUIStyle(CableGeneratorTheme.CaptionStyle);
+            labelBtnStyle.alignment = TextAnchor.MiddleLeft;
+
             if (GUILayout.Button(new GUIContent(labelText, $"クリックしてノット {index} を選択します"),
-                CableGeneratorTheme.CaptionStyle, GUILayout.Width(88), GUILayout.Height(18)))
+                labelBtnStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22)))
             {
                 CableGeneratorInspector.s_snapKnotIndex = index;
                 CableGeneratorInspector.s_selectedKnotIndices.Clear();
                 SceneView.RepaintAll();
                 Repaint();
             }
-
-            GUILayout.FlexibleSpace();
 
             // 接線モードドロップダウン
             var modeContent = new GUIContent("",
@@ -301,8 +297,13 @@ namespace CableGeneratorEditor
                 "コーナー = Broken（TangentIn/Out を独立制御）");
             TangentMode currentMode = spline.GetTangentMode(index);
             EditorGUI.BeginChangeCheck();
+            GUILayout.BeginVertical(GUILayout.Width(68));
+            GUILayout.FlexibleSpace();
             int newSimpleIdx = EditorGUILayout.Popup(modeContent, ToSimpleIndex(currentMode),
                 kTangentModeLabels, GUILayout.Width(68));
+            GUILayout.FlexibleSpace();
+            GUILayout.EndVertical();
+
             if (EditorGUI.EndChangeCheck())
             {
                 Undo.RecordObject(container, "接線モードを変更");
@@ -312,15 +313,15 @@ namespace CableGeneratorEditor
             }
 
             GUILayout.Space(2);
-            EditorGUI.BeginDisabledGroup(!canInsert);
-            if (GUILayout.Button(new GUIContent("+", $"ノット {index} の直後に新しい制御点を挿入します"),
-                CableGeneratorTheme.SecondaryButtonStyle, GUILayout.Width(22)))
-                insertAfterIndex = index;
-            EditorGUI.EndDisabledGroup();
 
             EditorGUI.BeginDisabledGroup(total <= 2);
+            var deleteBtnStyle = new GUIStyle(CableGeneratorTheme.DangerButtonStyle);
+            deleteBtnStyle.fontSize = Mathf.RoundToInt(deleteBtnStyle.fontSize * 1.5f);
+            deleteBtnStyle.alignment = TextAnchor.MiddleCenter;
+            deleteBtnStyle.padding = new RectOffset(0, 0, 0, 0);
+
             if (GUILayout.Button(new GUIContent("×", $"ノット {index} を削除します（最低2点必要）"),
-                CableGeneratorTheme.DangerButtonStyle, GUILayout.Width(22)))
+                deleteBtnStyle, GUILayout.Width(22), GUILayout.Height(22)))
                 deleteIndex = index;
             EditorGUI.EndDisabledGroup();
 
@@ -561,6 +562,24 @@ namespace CableGeneratorEditor
             EditorUtility.SetDirty(container);
             container.GetComponent<CableGenerator>()?.RebuildMesh();
             SceneView.RepaintAll();
+        }
+
+        static void AddKnotAfterSelected(SplineContainer container, Spline spline)
+        {
+            if (spline == null || spline.Count == 0)
+            {
+                AddKnotAtEnd(container, spline);
+                return;
+            }
+
+            int index = CableGeneratorInspector.s_snapKnotIndex;
+            if (index < 0 || index >= spline.Count)
+                index = spline.Count - 1;
+
+            if (!spline.Closed && index == spline.Count - 1)
+                AddKnotAtEnd(container, spline);
+            else
+                InsertKnotAfter(container, spline, index);
         }
 
         static void AddKnotAtEnd(SplineContainer container, Spline spline)
