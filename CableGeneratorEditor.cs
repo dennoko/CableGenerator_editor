@@ -20,15 +20,15 @@ namespace CableGeneratorEditor
         string bakeFolderPath = "";
 
         // ---- Picking Mode (static: 複数インスペクタ間で共有) ----
-        static CableGenerator s_pickingTarget = null;
+        internal static CableGenerator s_pickingTarget = null;
         static int            s_pickCount     = 0;
         static Vector3[]      s_pickedPoints  = new Vector3[2];
         static Vector3[]      s_pickedNormals = new Vector3[2];
         static float          s_tangentScale  = 1f;
 
         // ---- Knot Projection Settings ----
-        static int       s_snapKnotIndex        = 0;
-        static readonly HashSet<int> s_selectedKnotIndices = new HashSet<int>();
+        internal static int       s_snapKnotIndex        = 0;
+        internal static readonly HashSet<int> s_selectedKnotIndices = new HashSet<int>();
         static Vector3   s_snapDirection        = Vector3.down;
         static bool      s_snapDirectionIsLocal = false;
         static float     s_snapMaxDistance      = 10f;
@@ -1288,9 +1288,9 @@ namespace CableGeneratorEditor
             var spline = splineContainer.Splines[0];
             spline.Clear();
             spline.Add(new BezierKnot(new float3(0, 0, 0), new float3(0, 0, -0.5f), new float3(0, 0, 0.5f)),
-                TangentMode.Mirrored);
+                TangentMode.AutoSmooth);
             spline.Add(new BezierKnot(new float3(0, 0, 2), new float3(0, 0, -0.5f), new float3(0, 0, 0.5f)),
-                TangentMode.Mirrored);
+                TangentMode.AutoSmooth);
 
             go.AddComponent<CableGenerator>();
 

@@ -47,6 +47,11 @@ namespace CableGeneratorEditor
         // Buttons
         public static GUIStyle ActionButtonStyle     { get; private set; } // Primary Action
         public static GUIStyle SecondaryButtonStyle  { get; private set; } // Secondary Action
+        public static GUIStyle DangerButtonStyle     { get; private set; } // Destructive Action (delete)
+
+        // Knot List
+        public static GUIStyle KnotRowStyle          { get; private set; } // 個別 Knot の行コンテナ
+        public static GUIStyle KnotRowSelectedStyle  { get; private set; } // 選択中 Knot の行コンテナ
 
         // ─────────────────────────────────────────────────────────────────────
 
@@ -122,8 +127,29 @@ namespace CableGeneratorEditor
             SecondaryButtonStyle.active.textColor  = TextPrimary;
             SecondaryButtonStyle.border     = new RectOffset(1, 1, 1, 1);
             SecondaryButtonStyle.fontSize   = 11;
-            SecondaryButtonStyle.fixedHeight = 24; // インスペクタ用
+            SecondaryButtonStyle.fixedHeight = 24;
             SecondaryButtonStyle.alignment  = TextAnchor.MiddleCenter;
+
+            DangerButtonStyle = new GUIStyle(GUI.skin.button);
+            DangerButtonStyle.normal.background = MakeBorderedTex(Surface1, Outline);
+            DangerButtonStyle.normal.textColor  = new Color(0.80f, 0.35f, 0.35f);
+            DangerButtonStyle.hover.background  = MakeTex(new Color(0.35f, 0.08f, 0.08f));
+            DangerButtonStyle.hover.textColor   = TextPrimary;
+            DangerButtonStyle.active.background = MakeTex(new Color(0.50f, 0.12f, 0.12f));
+            DangerButtonStyle.active.textColor  = TextPrimary;
+            DangerButtonStyle.border      = new RectOffset(1, 1, 1, 1);
+            DangerButtonStyle.fontSize    = 11;
+            DangerButtonStyle.fixedHeight = 18;
+            DangerButtonStyle.alignment   = TextAnchor.MiddleCenter;
+
+            KnotRowStyle = new GUIStyle();
+            KnotRowStyle.normal.background = _texCard;
+            KnotRowStyle.border  = new RectOffset(1, 1, 1, 1);
+            KnotRowStyle.padding = new RectOffset(8, 8, 4, 4);
+            KnotRowStyle.margin  = new RectOffset(0, 0, 0, 4);
+
+            KnotRowSelectedStyle = new GUIStyle(KnotRowStyle);
+            KnotRowSelectedStyle.normal.background = _texAccentCard; // Surface2 でハイライト
         }
 
         // ─── Texture Utilities ───────────────────────────────────────────────
