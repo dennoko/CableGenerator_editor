@@ -39,6 +39,9 @@ namespace CableGeneratorEditor
         static int         s_initialDivisionCount = 4;
         static string      s_knotInitLastResult = string.Empty;
 
+        // ---- Temp Collider Option ----
+        static bool s_tempColliderEnabled = false;
+
         // ---- Cable Sag Settings ----
         static float     s_sagDropDistance   = 0.5f;
         static float     s_sagHandleLength   = 0.5f;
@@ -147,6 +150,10 @@ namespace CableGeneratorEditor
         {
             CableGeneratorTheme.Initialize();
 
+            // バッチ処理中はプログレスバーの更新のために継続的に再描画
+            if (CablePickingColliderManager.IsProcessing)
+                Repaint();
+
             serializedObject.Update();
             var generator = (CableGenerator)target;
 
@@ -177,13 +184,52 @@ namespace CableGeneratorEditor
                 }
             });
 
-            // ---- スプラインの基本構成 ----
-            DrawFoldableSection("スプラインの基本構成", ref s_foldSplineSetup, () =>
+            // ---- 2点選択でスプライン配線 ----
+            DrawFoldableSection("2点選択でスプライン配線", ref s_foldSplineSetup, () =>
             {
-                EditorGUILayout.HelpBox(
-                    "2点選択機能を使うには、対象メッシュにコライダーが必要です（MeshCollider 推奨）。\n" +
-                    "Box / Capsule / Sphere コライダーでは法線方向がずれる場合があります。",
-                    MessageType.Warning);
+                // 一時コライダー
+                s_tempColliderEnabled = EditorGUILayout.Toggle("一時コライダーを有効化", s_tempColliderEnabled);
+
+                GUILayout.Space(4);
+
+                EditorGUI.BeginDisabledGroup(!s_tempColliderEnabled);
+
+                bool processing = CablePickingColliderManager.IsProcessing;
+                int  attached   = CablePickingColliderManager.AttachedCount;
+
+                string attachLabel = processing
+                    ? $"付与中... {CablePickingColliderManager.ProcessedCount}/{CablePickingColliderManager.TotalCount}"
+                    : attached > 0 ? "コライダーを再付与" : "コライダーを付与";
+
+                EditorGUILayout.BeginHorizontal();
+
+                EditorGUI.BeginDisabledGroup(processing);
+                if (GUILayout.Button(attachLabel, CableGeneratorTheme.SecondaryButtonStyle))
+                    CablePickingColliderManager.Attach();
+                EditorGUI.EndDisabledGroup();
+
+                EditorGUI.BeginDisabledGroup(attached == 0 && !processing);
+                if (GUILayout.Button("コライダーを削除", CableGeneratorTheme.SecondaryButtonStyle))
+                    CablePickingColliderManager.Detach();
+                EditorGUI.EndDisabledGroup();
+
+                EditorGUILayout.EndHorizontal();
+
+                if (processing)
+                {
+                    Rect progressRect = EditorGUILayout.GetControlRect(false, 14);
+                    float prog = CablePickingColliderManager.TotalCount > 0
+                        ? (float)CablePickingColliderManager.ProcessedCount / CablePickingColliderManager.TotalCount
+                        : 0f;
+                    EditorGUI.ProgressBar(progressRect, prog,
+                        $"{CablePickingColliderManager.ProcessedCount} / {CablePickingColliderManager.TotalCount}");
+                }
+                else if (attached > 0)
+                {
+                    GUILayout.Label($"付与済み: {attached} オブジェクト", CableGeneratorTheme.CaptionStyle);
+                }
+
+                EditorGUI.EndDisabledGroup();
 
                 GUILayout.Space(6);
 
@@ -198,11 +244,10 @@ namespace CableGeneratorEditor
 
                 if (!isMyTarget)
                 {
-                    using (new EditorGUI.DisabledScope(s_pickingTarget != null))
-                    {
-                        if (GUILayout.Button("2点選択でSplineを設定", CableGeneratorTheme.SecondaryButtonStyle))
-                            StartPickingMode(generator);
-                    }
+                    EditorGUI.BeginDisabledGroup(s_pickingTarget != null);
+                    if (GUILayout.Button("2点選択でSplineを設定", CableGeneratorTheme.SecondaryButtonStyle))
+                        StartPickingMode(generator);
+                    EditorGUI.EndDisabledGroup();
 
                     if (s_pickingTarget != null)
                         GUILayout.Label("別のオブジェクトで選択中です。", CableGeneratorTheme.CaptionStyle);
