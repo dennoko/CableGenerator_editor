@@ -418,16 +418,14 @@ namespace CableGeneratorEditor
 
             for (int i = 0; i < curveCount; i++)
             {
-                EvaluateCurveMidpoint(knots[i], knots[(i + 1) % knotCount],
+                EvaluateCurveArcLengthMidpoint(knots[i], knots[(i + 1) % knotCount],
                     out float3 pos, out float3 tan, out float3 up);
 
                 Vector3 tangent = ((Vector3)tan).normalized;
                 if (tangent.sqrMagnitude < kVectorEpsilonSqr) tangent = Vector3.forward;
 
                 quaternion rot = SafeLookRotation(tangent, (Vector3)up);
-                Vector3    start = (Vector3)knots[i].Position;
-                Vector3    end   = (Vector3)knots[(i + 1) % knotCount].Position;
-                float      len   = Vector3.Distance(start, end) / kMidpointTangentDivisor;
+                float      len = math.length(tan) / kMidpointTangentDivisor;
 
                 inserted[i] = new BezierKnot(
                     pos,
@@ -523,33 +521,54 @@ namespace CableGeneratorEditor
             return true;
         }
 
-        static void EvaluateCurveMidpoint(BezierKnot startKnot, BezierKnot endKnot,
-            out float3 pos, out float3 tan, out float3 up)
+        // ================================================================
+        //  Math Helpers
+        // ================================================================
+
+        // 弧長パラメタライゼーションでセグメントの距離的中点を求める
+        static void EvaluateCurveArcLengthMidpoint(BezierKnot startKnot, BezierKnot endKnot,
+            out float3 pos, out float3 tan, out float3 up, int samples = 64)
         {
             float3 p0 = startKnot.Position;
             float3 p1 = startKnot.Position + math.rotate(startKnot.Rotation, startKnot.TangentOut);
             float3 p2 = endKnot.Position   + math.rotate(endKnot.Rotation,   endKnot.TangentIn);
             float3 p3 = endKnot.Position;
 
-            const float t   = 0.5f;
-            const float omt = 1f - t;
+            // 累積弧長テーブルを構築
+            var cumLen = new float[samples + 1];
+            var pts    = new float3[samples + 1];
+            cumLen[0] = 0f;
+            pts[0]    = p0;
+            for (int j = 1; j <= samples; j++)
+            {
+                float s   = (float)j / samples;
+                float oms = 1f - s;
+                pts[j]    = oms*oms*oms*p0 + 3f*oms*oms*s*p1 + 3f*oms*s*s*p2 + s*s*s*p3;
+                cumLen[j] = cumLen[j - 1] + math.length(pts[j] - pts[j - 1]);
+            }
 
-            pos = (omt * omt * omt) * p0
-                + (3f * omt * omt * t) * p1
-                + (3f * omt * t   * t) * p2
-                + (t   * t   * t)      * p3;
+            float halfLen = cumLen[samples] * 0.5f;
 
-            tan = (3f * omt * omt) * (p1 - p0)
-                + (6f * omt * t)   * (p2 - p1)
-                + (3f * t   * t)   * (p3 - p2);
+            // halfLen に対応する t を線形補間で求める
+            float tMid = 0.5f;
+            for (int j = 1; j <= samples; j++)
+            {
+                if (cumLen[j] >= halfLen)
+                {
+                    float span = cumLen[j] - cumLen[j - 1];
+                    float frac = span > 1e-9f ? (halfLen - cumLen[j - 1]) / span : 0f;
+                    tMid = ((float)(j - 1) + frac) / samples;
+                    break;
+                }
+            }
 
-            quaternion midRot = math.slerp(startKnot.Rotation, endKnot.Rotation, t);
+            float omt = 1f - tMid;
+            pos = omt*omt*omt*p0 + 3f*omt*omt*tMid*p1 + 3f*omt*tMid*tMid*p2 + tMid*tMid*tMid*p3;
+            tan = 3f*omt*omt*(p1 - p0) + 6f*omt*tMid*(p2 - p1) + 3f*tMid*tMid*(p3 - p2);
+
+            quaternion midRot = math.slerp(startKnot.Rotation, endKnot.Rotation, tMid);
             up = math.rotate(midRot, new float3(0f, 1f, 0f));
         }
-
-        // ================================================================
-        //  Math Helpers
-        // ================================================================
 
         static quaternion SafeLookRotation(Vector3 forward)
         {

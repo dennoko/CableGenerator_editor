@@ -35,7 +35,7 @@ namespace CableGeneratorEditor
         static float     s_snapSurfaceOffset    = 0.003f;
         static LayerMask s_snapLayerMask        = ~0;
         static string    s_snapLastResult       = string.Empty;
-        static TangentMode s_addedKnotMode      = TangentMode.AutoSmooth;
+        static int         s_addedKnotModeIndex = 0; // 0=自動, 1=スムーズ, 2=コーナー
         static int         s_initialDivisionCount = 4;
         static string      s_knotInitLastResult = string.Empty;
 
@@ -61,6 +61,13 @@ namespace CableGeneratorEditor
         const float kVectorEpsilonSqr       = kVectorEpsilon * kVectorEpsilon;
         const float kMidpointTangentDivisor = 6f;
         const float kLinearTangentDivisor   = 3f;
+
+        static TangentMode AddedKnotTangentMode() => s_addedKnotModeIndex switch
+        {
+            1 => TangentMode.Mirrored,
+            2 => TangentMode.Broken,
+            _ => TangentMode.AutoSmooth,
+        };
 
         // Rate-slider 用インスタンス状態
         float  s_rateSliderValue    = 0f;
@@ -227,14 +234,14 @@ namespace CableGeneratorEditor
             // ---- ノットの細分化・等分 ----
             DrawFoldableSection("ノットの細分化・等分", ref s_foldKnotSubdivision, () =>
             {
-                s_addedKnotMode        = (TangentMode)EditorGUILayout.EnumPopup("追加ノットモード", s_addedKnotMode);
+                s_addedKnotModeIndex   = EditorGUILayout.Popup("追加ノットモード", s_addedKnotModeIndex, new[] { "自動", "スムーズ", "コーナー" });
                 s_initialDivisionCount = Mathf.Max(1, EditorGUILayout.IntField("始点-終点 分割数", s_initialDivisionCount));
 
                 EditorGUILayout.BeginHorizontal();
                 if (GUILayout.Button("始点-終点を等分してノット再配置", CableGeneratorTheme.SecondaryButtonStyle))
-                    RedistributeKnotsBetweenEndpoints(generator, s_initialDivisionCount, s_addedKnotMode);
+                    RedistributeKnotsBetweenEndpoints(generator, s_initialDivisionCount, AddedKnotTangentMode());
                 if (GUILayout.Button("全区間を細分化してノット追加", CableGeneratorTheme.SecondaryButtonStyle))
-                    SubdivideSplineKnots(generator, s_addedKnotMode);
+                    SubdivideSplineKnots(generator, AddedKnotTangentMode());
                 EditorGUILayout.EndHorizontal();
 
                 if (!string.IsNullOrEmpty(s_knotInitLastResult))

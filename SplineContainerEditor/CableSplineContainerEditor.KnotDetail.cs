@@ -9,7 +9,7 @@ namespace CableGeneratorEditor
     internal partial class CableSplineContainerEditor
     {
         // ---- 詳細パネルの展開状態 ----
-        static bool s_showAdvancedKnotDetail = false;
+
 
         // ---- Rate-slider 用インスタンス状態 ----
         float  s_rateSliderValue    = 0f;
@@ -145,17 +145,9 @@ namespace CableGeneratorEditor
 
             TangentMode currentMode = spline.GetTangentMode(index);
 
-            // 詳細セクション（折りたたみ）: 回転・接線
-            string advLabel = (s_showAdvancedKnotDetail ? "▼  " : "▶  ") + "回転・接線（詳細）";
-            if (GUILayout.Button(new GUIContent(advLabel,
-                    "ノットの回転と接線ベクトルを編集します。接線の向きがケーブルの曲がり具合を決めます。"),
-                CableGeneratorTheme.SectionHeaderStyle))
-            {
-                s_showAdvancedKnotDetail = !s_showAdvancedKnotDetail;
-                GUI.changed = true;
-            }
+            // 詳細セクション: 回転・接線 (トグルを廃止し、常に表示)
+            GUILayout.Label("回転・接線（詳細）", CableGeneratorTheme.SectionHeaderStyle);
 
-            if (s_showAdvancedKnotDetail)
             {
                 var advLine = GUILayoutUtility.GetRect(0, 1, GUILayout.ExpandWidth(true));
                 EditorGUI.DrawRect(advLine, CableGeneratorTheme.Outline);
