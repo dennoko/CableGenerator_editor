@@ -39,9 +39,6 @@ namespace CableGeneratorEditor
         static int         s_initialDivisionCount = 4;
         static string      s_knotInitLastResult = string.Empty;
 
-        // ---- Temp Collider Option ----
-        static bool s_tempColliderEnabled = false;
-
         // ---- Cable Sag Settings ----
         static float     s_sagDropDistance   = 0.5f;
         static float     s_sagHandleLength   = 0.5f;
@@ -187,13 +184,6 @@ namespace CableGeneratorEditor
             // ---- 2点選択でスプライン配線 ----
             DrawFoldableSection("2点選択でスプライン配線", ref s_foldSplineSetup, () =>
             {
-                // 一時コライダー
-                s_tempColliderEnabled = EditorGUILayout.Toggle("一時コライダーを有効化", s_tempColliderEnabled);
-
-                GUILayout.Space(4);
-
-                EditorGUI.BeginDisabledGroup(!s_tempColliderEnabled);
-
                 bool processing = CablePickingColliderManager.IsProcessing;
                 int  attached   = CablePickingColliderManager.AttachedCount;
 
@@ -228,8 +218,6 @@ namespace CableGeneratorEditor
                 {
                     GUILayout.Label($"付与済み: {attached} オブジェクト", CableGeneratorTheme.CaptionStyle);
                 }
-
-                EditorGUI.EndDisabledGroup();
 
                 GUILayout.Space(6);
 
@@ -293,8 +281,8 @@ namespace CableGeneratorEditor
                     GUILayout.Label(s_knotInitLastResult, CableGeneratorTheme.CaptionStyle);
             });
 
-            // ---- ノット投影 ----
-            DrawFoldableSection("ノット投影", ref s_foldKnotProjection, () =>
+            // ---- ノットを面にスナップ配置 ----
+            DrawFoldableSection("ノットを面にスナップ配置", ref s_foldKnotProjection, () =>
             {
                 EditorGUI.BeginChangeCheck();
                 s_snapKnotIndex = Mathf.Max(0, EditorGUILayout.IntField("対象ノット Index", s_snapKnotIndex));

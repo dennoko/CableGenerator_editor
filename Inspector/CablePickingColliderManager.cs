@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using CableGeneratorRuntime;
 
 namespace CableGeneratorEditor
 {
@@ -159,7 +160,8 @@ namespace CableGeneratorEditor
         static bool IsEligible(MeshFilter mf) =>
             mf.sharedMesh != null
             && mf.sharedMesh.vertexCount <= kVertexMax
-            && mf.GetComponent<Collider>() == null;
+            && mf.GetComponent<Collider>() == null
+            && mf.GetComponent<CableGenerator>() == null;
 
         static string GetPath(GameObject go)
         {

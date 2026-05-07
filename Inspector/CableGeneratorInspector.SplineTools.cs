@@ -226,12 +226,14 @@ namespace CableGeneratorEditor
                 return false;
             }
 
+            // Clear+Add は KnotInserted イベントを N 回発火させ CableKnotAttachment の
+            // knotIndex をずらすため、SetKnot/SetTangentMode で既存スロットを上書きする。
             Undo.RecordObject(splineContainer, "Snap Knots To Surface");
-            spline.Clear();
-            spline.Closed = closed;
-
             for (int i = 0; i < knotCount; i++)
-                spline.Add(knots[i], modes[i]);
+            {
+                spline.SetKnot(i, knots[i]);
+                spline.SetTangentMode(i, modes[i]);
+            }
 
             EditorUtility.SetDirty(splineContainer);
             SceneView.RepaintAll();
