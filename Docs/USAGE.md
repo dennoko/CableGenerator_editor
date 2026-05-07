@@ -60,7 +60,7 @@ Select the Cable object and open the Scene View. The following handles appear:
 - **Colored spheres** — one per control point (knot). Color indicates tangent mode (see §3.3).
 - **Blue / orange sphere handles** extending from each knot — tangent (In / Out).
 - **Yellow polyline** — spline preview.
-- **[N] labels** — knot index displayed above each knot.
+- **[N] / [N]▶ / ◀[N] labels** — knot index displayed above each knot. The start knot shows **[N]▶** and the end knot shows **◀[N]**.
 
 | Action | How |
 |---|---|
@@ -73,7 +73,7 @@ Select the Cable object and open the Scene View. The following handles appear:
 
 In the **SplineContainer** Inspector, use the **制御点リスト (Control Point List)**:
 
-- **＋ 制御点を追加** — adds a knot after the currently selected one. If the last knot is selected, the new knot is placed 2 m in the outgoing tangent direction.
+- **＋ 制御点を追加** — adds a knot after the currently selected one. If a middle knot is selected, the new knot is inserted at the midpoint between that knot and the next. If the last knot is selected, the new knot is placed 2 m in the outgoing tangent direction.
 - **×** on any row — deletes that knot (requires at least 2 knots; button is disabled when only 2 remain).
 
 ### 2.5 Adjust Mesh Quality
@@ -114,10 +114,12 @@ What happens:
 
 ---
 
-#### スプラインの基本構成 *(foldable)*
+#### 2点選択でスプライン配線 *(foldable)*
 
 | Element | Description |
 |---|---|
+| コライダーを付与 | Adds a temporary `MeshCollider` to every eligible object in the scene so they can be targeted by raycasts (2-point picking and surface projection). Objects are processed in batches; a progress bar is shown while processing. When colliders are already attached, the button label changes to **コライダーを再付与**. |
+| コライダーを削除 | Removes all temporary colliders added by the button above. |
 | ハンドルの長さ | Rate slider. Drag right/left to grow/shrink all tangent handles proportionally to their segment lengths. Release to stop. Current scale shown in metres. |
 | 2点選択でSplineを設定 | Enters 2-point picking mode. Click two collider surfaces in Scene View; a 2-knot spline is created between those points, oriented along the surface normals. **Target meshes must have a Collider (MeshCollider recommended).** |
 | やり直し *(picking mode)* | Clears the first picked point to start over. |
@@ -138,7 +140,7 @@ What happens:
 
 ---
 
-#### ノット投影 *(foldable)*
+#### ノットを面にスナップ配置 *(foldable)*
 
 Projects one or more knots onto scene geometry via raycasting.
 
@@ -151,7 +153,7 @@ Projects one or more knots onto scene geometry via raycasting.
 | 最大距離 | Maximum raycast distance (metres). |
 | 面オフセット | Offset applied along the hit normal to lift the knot slightly above the surface (avoids z-fighting). |
 | LayerMask | Layers included in the raycast. |
-| 指定ノットを面へ投影 | Fires rays from the selected knot(s) and moves them to the hit positions. Reports results below the button. |
+| 指定ノットを面へ投影 | Fires rays from the selected knot(s) and moves them to the hit positions. Reports results below the button. When multiple knots are selected via Shift+click, the label changes to **選択した N ノットを面へ投影**. |
 
 ---
 
@@ -177,6 +179,18 @@ Appears only when the SplineContainer has a spline.
 | Element | Description |
 |---|---|
 | ノット N にアタッチメントを追加 | Creates a child GameObject named `Attachment_KnotN` with a `CableKnotAttachment` component. The child follows knot N's world position. |
+
+The created child object's **CableKnotAttachment** component exposes the following fields:
+
+| Field | Description |
+|---|---|
+| knotIndex | Index of the knot to follow. |
+| prefab | **Prefab or FBX model asset** to instantiate at the knot. Accepts both `.prefab` files and non-prefabbed `.fbx` model assets. Assign by dragging from the Project window. |
+| positionOffset | Position offset from the knot in local space. |
+| rotationOffset | Additional rotation in Euler angles. |
+| scale | Scale of the spawned instance. |
+
+> **Note:** `.prefab` files are instantiated with a maintained Prefab connection. `.fbx` model assets (and other non-Prefab assets) are instantiated directly without a Prefab connection.
 
 ---
 
@@ -232,10 +246,10 @@ One row per knot.
 
 | Element | Description |
 |---|---|
-| Global / Local | Toggles whether position and rotation are displayed in world or local space. |
+| Global / Local | Toggles the display space for rotation and tangent angles. **Position is always displayed in world space** regardless of this toggle. |
 | ◀ / ▶ | Navigate to the previous / next knot. |
 | 位置 | Editable position (world or local depending on toggle). |
-| 回転・接線（詳細） | Foldable section. Active only in **スムーズ** (Mirrored) or **コーナー** (Broken) mode. |
+| 回転・接線（詳細） | Always-visible section. In AutoSmooth (**自動**) mode, a help message is shown and all controls are inactive. Controls become active in **スムーズ** (Mirrored) or **コーナー** (Broken) mode. |
 
 **Inside 回転・接線:**
 
@@ -258,7 +272,7 @@ One row per knot.
 | Blue sphere + line | TangentIn handle. Drag to adjust the incoming curve. |
 | Orange sphere + line | TangentOut handle. Drag to adjust the outgoing curve. |
 | Yellow polyline | 64-step spline preview. |
-| [N] label above knot | Knot index. White background = currently selected. |
+| [N] / [N]▶ / ◀[N] label above knot | Knot index. The start knot shows **[N]▶** and the end knot shows **◀[N]**. White background = currently selected. |
 
 ---
 
@@ -290,6 +304,9 @@ A: After export, the original object is tagged `EditorOnly` and set inactive. It
 
 **Q: The lightmap UV (UV1) appears stretched.**  
 A: UV1 is auto-packed from the profile perimeters and spline length using a shelf-packing algorithm. For very high aspect-ratio cables, packing may not be ideal. As a workaround, manually unwrap and bake UV1 in an external DCC tool after exporting the mesh asset.
+
+**Q: Can I assign an FBX file directly to the attachment prefab field?**  
+A: Yes. The `prefab` field on `CableKnotAttachment` accepts both `.prefab` files and non-prefabbed `.fbx` model assets. Drag the FBX from the Project window and drop it onto the field. `.prefab` files are instantiated with a Prefab connection preserved; `.fbx` model assets are instantiated directly without one.
 
 **Q: Can I drive the cable shape from a script at runtime?**  
 A: Yes. `CableGenerator` listens to `Spline.Changed` events, so modifying the `SplineContainer` programmatically will trigger an automatic rebuild. The component uses `[ExecuteAlways]`, so it also responds in Edit mode.
