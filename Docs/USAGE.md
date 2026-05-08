@@ -188,7 +188,7 @@ The created child object's **CableKnotAttachment** component exposes the followi
 | prefab | **Prefab or FBX model asset** to instantiate at the knot. Accepts both `.prefab` files and non-prefabbed `.fbx` model assets. Assign by dragging from the Project window. |
 | positionOffset | Position offset from the knot in local space. |
 | rotationOffset | Additional rotation in Euler angles. |
-| scale | Scale of the spawned instance. |
+| scale | Scale of the spawned instance. Each axis (X, Y, Z) can be set independently, so you can stretch or squash the attached object along any specific axis. |
 
 > **Note:** `.prefab` files are instantiated with a maintained Prefab connection. `.fbx` model assets (and other non-Prefab assets) are instantiated directly without a Prefab connection.
 
@@ -248,7 +248,7 @@ One row per knot.
 |---|---|
 | Global / Local | Toggles the display space for rotation and tangent angles. **Position is always displayed in world space** regardless of this toggle. |
 | ◀ / ▶ | Navigate to the previous / next knot. |
-| 位置 | Editable position (world or local depending on toggle). |
+| 位置 | Editable position. Always displayed in **world space** regardless of the Global / Local toggle. |
 | 回転・接線（詳細） | Always-visible section. In AutoSmooth (**自動**) mode, a help message is shown and all controls are inactive. Controls become active in **スムーズ** (Mirrored) or **コーナー** (Broken) mode. |
 
 **Inside 回転・接線:**
@@ -272,7 +272,7 @@ One row per knot.
 | Blue sphere + line | TangentIn handle. Drag to adjust the incoming curve. |
 | Orange sphere + line | TangentOut handle. Drag to adjust the outgoing curve. |
 | Yellow polyline | 64-step spline preview. |
-| [N] / [N]▶ / ◀[N] label above knot | Knot index. The start knot shows **[N]▶** and the end knot shows **◀[N]**. White background = currently selected. |
+| [N] / [N]▶ / ◀[N] label above knot | Knot index. The start knot shows **[N]▶** and the end knot shows **◀[N]**. Yellow text, larger font = currently selected. |
 
 ---
 
