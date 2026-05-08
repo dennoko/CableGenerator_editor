@@ -28,27 +28,35 @@ namespace CableGeneratorEditor
             // フォルダが存在しない場合は作成
             EnsureFolderExists(folder);
 
-            string path = folder + "/" + defaultName + ".asset";
-
-            // 同名ファイルが既に存在する場合は確認
-            if (AssetDatabase.LoadAssetAtPath<Object>(path) != null)
-            {
-                if (!EditorUtility.DisplayDialog("上書き確認",
-                    $"既にファイルが存在します:\n{path}\n\n上書きしますか？", "上書き", "キャンセル"))
-                    return null;
-
-                AssetDatabase.DeleteAsset(path);
-            }
+            string path = GenerateUniqueAssetPath(folder, defaultName);
+            string actualName = System.IO.Path.GetFileNameWithoutExtension(path);
 
             // メッシュをディープコピーして保存
             Mesh copy = Object.Instantiate(sourceMesh);
-            copy.name = defaultName;
+            copy.name = actualName;
 
             AssetDatabase.CreateAsset(copy, path);
             AssetDatabase.SaveAssets();
 
             EditorGUIUtility.PingObject(copy);
             Debug.Log($"メッシュを保存しました: {path}");
+
+            return path;
+        }
+
+        static string GenerateUniqueAssetPath(string folder, string baseName)
+        {
+            string path = $"{folder}/{baseName}.asset";
+            if (AssetDatabase.LoadAssetAtPath<Object>(path) == null)
+                return path;
+
+            int counter = 1;
+            do
+            {
+                path = $"{folder}/{baseName} {counter}.asset";
+                counter++;
+            }
+            while (AssetDatabase.LoadAssetAtPath<Object>(path) != null);
 
             return path;
         }

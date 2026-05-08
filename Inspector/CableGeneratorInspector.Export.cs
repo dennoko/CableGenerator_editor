@@ -26,7 +26,7 @@ namespace CableGeneratorEditor
             Transform  sourceTransform = sourceObject.transform;
             Transform  sourceParent    = sourceTransform.parent;
 
-            string bakedObjectName = sourceObject.name + "_cable_baked";
+            string bakedObjectName = GenerateUniqueGameObjectName(sourceParent, sourceObject.name + "_cable_baked");
             var    bakedObject     = new GameObject(bakedObjectName);
             Undo.RegisterCreatedObjectUndo(bakedObject, "Create Baked Cable Object");
 
@@ -48,6 +48,24 @@ namespace CableGeneratorEditor
             if (sourceRenderer != null)
                 bakedRenderer.sharedMaterials = sourceRenderer.sharedMaterials;
 
+            // アタッチされたモデルをワールド座標を維持して子に配置
+            var attachments = generator.GetComponentsInChildren<CableKnotAttachment>(true);
+            foreach (var attachment in attachments)
+            {
+                if (attachment.SpawnedInstance == null) continue;
+
+                Transform spawnedTransform = attachment.SpawnedInstance.transform;
+                GameObject instanceCopy = Object.Instantiate(
+                    attachment.SpawnedInstance,
+                    spawnedTransform.position,
+                    spawnedTransform.rotation);
+                // ワールドスケールを明示的に保持（Instantiate は localScale をコピーするため）
+                instanceCopy.transform.localScale = spawnedTransform.lossyScale;
+                instanceCopy.name = attachment.SpawnedInstance.name;
+                Undo.RegisterCreatedObjectUndo(instanceCopy, "Copy Attachment to Baked Cable");
+                instanceCopy.transform.SetParent(bakedObject.transform, true);
+            }
+
             Undo.RecordObject(sourceObject, "Disable Original Cable Object");
             bool editorOnlyTagExists = System.Array.IndexOf(InternalEditorUtility.tags, "EditorOnly") >= 0;
             if (editorOnlyTagExists)
@@ -59,6 +77,36 @@ namespace CableGeneratorEditor
             EditorUtility.SetDirty(sourceObject);
             EditorUtility.SetDirty(bakedObject);
             Selection.activeGameObject = bakedObject;
+        }
+
+        static string GenerateUniqueGameObjectName(Transform parent, string baseName)
+        {
+            var usedNames = new System.Collections.Generic.HashSet<string>();
+
+            if (parent != null)
+            {
+                for (int i = 0; i < parent.childCount; i++)
+                    usedNames.Add(parent.GetChild(i).name);
+            }
+            else
+            {
+                foreach (var root in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
+                    usedNames.Add(root.name);
+            }
+
+            if (!usedNames.Contains(baseName))
+                return baseName;
+
+            int counter = 1;
+            string candidate;
+            do
+            {
+                candidate = $"{baseName} {counter}";
+                counter++;
+            }
+            while (usedNames.Contains(candidate));
+
+            return candidate;
         }
 
         // ================================================================
