@@ -105,7 +105,7 @@ namespace CableGeneratorEditor
 
             // ── Buttons ──────────────────────────────────────────────────────
 
-            ActionButtonStyle = new GUIStyle(GUI.skin.button);
+            ActionButtonStyle = new GUIStyle();
             ActionButtonStyle.normal.background  = _texAccentCard;
             ActionButtonStyle.normal.textColor   = TextPrimary;
             ActionButtonStyle.hover.background   = MakeTex(Color.Lerp(Surface2, Color.white, 0.07f));
@@ -113,12 +113,14 @@ namespace CableGeneratorEditor
             ActionButtonStyle.active.background  = MakeTex(Color.Lerp(Surface2, Color.white, 0.15f));
             ActionButtonStyle.active.textColor   = TextPrimary;
             ActionButtonStyle.border     = new RectOffset(1, 1, 1, 1);
+            ActionButtonStyle.margin     = new RectOffset(4, 4, 2, 2);
+            ActionButtonStyle.padding    = new RectOffset(2, 2, 2, 2);
             ActionButtonStyle.fontSize   = 13;
             ActionButtonStyle.fontStyle  = FontStyle.Bold;
             ActionButtonStyle.fixedHeight = 30; // インスペクタ用なので少し小さめ
             ActionButtonStyle.alignment  = TextAnchor.MiddleCenter;
 
-            SecondaryButtonStyle = new GUIStyle(GUI.skin.button);
+            SecondaryButtonStyle = new GUIStyle();
             SecondaryButtonStyle.normal.background = MakeBorderedTex(Surface1, Outline);
             SecondaryButtonStyle.normal.textColor  = TextSecondary;
             SecondaryButtonStyle.hover.background  = _texAccentCard;
@@ -126,11 +128,13 @@ namespace CableGeneratorEditor
             SecondaryButtonStyle.active.background = MakeTex(Color.Lerp(Surface1, Color.white, 0.10f));
             SecondaryButtonStyle.active.textColor  = TextPrimary;
             SecondaryButtonStyle.border     = new RectOffset(1, 1, 1, 1);
+            SecondaryButtonStyle.margin     = new RectOffset(4, 4, 2, 2);
+            SecondaryButtonStyle.padding    = new RectOffset(2, 2, 2, 2);
             SecondaryButtonStyle.fontSize   = 11;
             SecondaryButtonStyle.fixedHeight = 24;
             SecondaryButtonStyle.alignment  = TextAnchor.MiddleCenter;
 
-            DangerButtonStyle = new GUIStyle(GUI.skin.button);
+            DangerButtonStyle = new GUIStyle();
             DangerButtonStyle.normal.background = MakeBorderedTex(Surface1, Outline);
             DangerButtonStyle.normal.textColor  = new Color(0.80f, 0.35f, 0.35f);
             DangerButtonStyle.hover.background  = MakeTex(new Color(0.35f, 0.08f, 0.08f));
@@ -138,6 +142,8 @@ namespace CableGeneratorEditor
             DangerButtonStyle.active.background = MakeTex(new Color(0.50f, 0.12f, 0.12f));
             DangerButtonStyle.active.textColor  = TextPrimary;
             DangerButtonStyle.border      = new RectOffset(1, 1, 1, 1);
+            DangerButtonStyle.margin      = new RectOffset(4, 4, 2, 2);
+            DangerButtonStyle.padding     = new RectOffset(2, 2, 2, 2);
             DangerButtonStyle.fontSize    = 11;
             DangerButtonStyle.fixedHeight = 18;
             DangerButtonStyle.alignment   = TextAnchor.MiddleCenter;
